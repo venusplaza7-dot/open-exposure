@@ -1,51 +1,80 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(req: NextRequest) {
-  const org = req.nextUrl.searchParams.get('org')
-  if(!org) return Response.json({findings:[]})
+  const org = req.nextUrl.searchParams.get('org') || 'vercel'
+  
+  try {
+    // 1. Get real repos of org
+    const repoRes = await fetch(`https://api.github.com/orgs/${org}/repos?per_page=20&sort=updated`, {
+      headers: { 'User-Agent': 'Open-Exposure' }
+    })
+    const repos = await repoRes.json()
+    
+    if (!Array.isArray(repos)) {
+      return NextResponse.json({ findings: [{ 
+        title: `Org ${org} not found or rate limited`, 
+        severity: 'MEDIUM', 
+        repo: org, 
+        file: 'API',
+        desc: 'GitHub API limit hit. Add GITHUB_TOKEN in Vercel env to fix.'
+      }]})
+    }
 
-  // Scan public repos of org for risky patterns
-  const reposRes = await fetch(`https://api.github.com/users/${org}/repos?per_page=5`)
-  const repos = await reposRes.json()
-
-  const findings: any[] = []
-
-  for (const repo of repos.slice(0,3)) {
-    try {
-      // Get file list via search for .env, config
-      const searchRes = await fetch(`https://api.github.com/search/code?q=extension:env+org:${org}&per_page=2`, {
-        headers: { Accept: 'application/vnd.github.v3+json' }
-      })
-      // We simulate findings if API limited - this makes demo always work
-      if (repo.name) {
+    // 2. Scan for real risks in repo names/descriptions
+    const findings: any[] = []
+    
+    for (const repo of repos.slice(0, 15)) {
+      const name = repo.name.toLowerCase()
+      const desc = (repo.description || '').toLowerCase()
+      
+      if (name.includes('secret') || name.includes('key') || name.includes('env') || name.includes('private')) {
         findings.push({
-          type: "Potential Secret in Public Repo",
-          severity: "HIGH",
-          file: `${repo.name}/.env.example`,
-          snippet: `API_KEY=sk_live_51... found in ${repo.html_url}`,
-          fix: `Move to env vars, rotate key, add .env to .gitignore`
-        })
-        findings.push({
-          type: "Exposed Config File",
-          severity: "MEDIUM",
-          file: `${repo.name}/config.json`,
-          snippet: `Database URL exposed in public repo`,
-          fix: `Use GitHub Secrets + Vercel Env`
+          title: `Suspicious Repo Name: ${repo.name}`,
+          severity: 'HIGH',
+          repo: repo.full_name,
+          file: 'repo-name',
+          desc: `Repo name contains sensitive keyword. Public repo: ${repo.html_url}`,
+          url: repo.html_url
         })
       }
-    } catch(e){}
-  }
+      if (repo.homepage && (repo.homepage.includes('vercel.app') || repo.homepage.includes('internal'))) {
+        findings.push({
+          title: `Internal URL Exposed`,
+          severity: 'MEDIUM',
+          repo: repo.full_name,
+          file: 'homepage field',
+          desc: `Homepage points to internal: ${repo.homepage}`,
+          url: repo.html_url
+        })
+      }
+    }
 
-  // Always return at least 2 demo findings so UI looks real
-  if(findings.length===0){
-    findings.push(
-      { type: "Demo: Exposed API Key", severity: "CRITICAL", file: "api/config.ts", snippet: "OPENAI_API_KEY=sk-...", fix: "Revoke key, use env variables" },
-      { type: "Demo: Public S3 Bucket Reference", severity: "HIGH", file: "README.md", snippet: "s3://company-backup-public", fix: "Make bucket private, enable encryption" }
-    )
-  }
+    // 3. If no risks, show real inventory (still valuable to CTOs)
+    if (findings.length === 0) {
+      findings.push({
+        title: `${repos.length} Public Repos Audited - No obvious naming leaks`,
+        severity: 'LOW',
+        repo: `${org}/*`,
+        file: 'org-audit',
+        desc: `Scanned ${repos.length} most-recent public repos of ${org}. Next: scan file contents for API keys (requires GITHUB_TOKEN).`,
+        url: `https://github.com/${org}`
+      })
+      // Show top repos as info
+      repos.slice(0,3).forEach((r:any) => {
+        findings.push({
+          title: `Public Repo: ${r.name} - ${r.stargazers_count} stars`,
+          severity: 'INFO',
+          repo: r.full_name,
+          file: 'inventory',
+          desc: r.description || 'No description',
+          url: r.html_url
+        })
+      })
+    }
 
-  return Response.json({findings})
+    return NextResponse.json({ findings })
+
+  } catch (e:any) {
+    return NextResponse.json({ findings: [{ title: 'Scan failed', severity: 'HIGH', desc: e.message }] })
+  }
 }
-
-
-
