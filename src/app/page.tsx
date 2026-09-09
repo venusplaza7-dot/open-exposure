@@ -1,6 +1,5 @@
 "use client"
 import { useState } from 'react'
-
 type Finding = { type: string; severity: string; file: string; snippet: string; fix: string }
 
 export default function Home() {
@@ -9,45 +8,36 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
 
   async function scan() {
-    if(!org) return
     setLoading(true)
-    try {
-      const res = await fetch(`/api/scan?org=${org}`)
-      const data = await res.json()
-      setResults(data.findings || [])
-    } catch(e){ console.error(e) }
+    const res = await fetch(`/api/scan?org=${org}`)
+    const data = await res.json()
+    setResults(data.findings || [])
     setLoading(false)
   }
 
   return (
-    <main className="min-h-screen bg-white text-black p-6">
+    <main className="min-h-screen bg-[#050505] text-white p-8 font-mono">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-black mb-2">OPEN EXPOSURE</h1>
-        <p className="text-gray-600 mb-6">Free open-source Daybreak alternative. 100% local. No data leaves your browser.</p>
+        <div className="border border-[#1a1a1a] bg-[#0a0a0a] p-6 rounded-2xl mb-6">
+          <h1 className="text-5xl font-black tracking-tighter">OPEN EXPOSURE</h1>
+          <p className="text-zinc-400 mt-2">Free open-source Daybreak alternative. 100% local. No data leaves your browser.</p>
+        </div>
         
-        <div className="flex gap-2 mb-8 p-1 bg-gray-100 rounded-xl border">
-          <input 
-            value={org} 
-            onChange={e=>setOrg(e.target.value)} 
-            placeholder="Type org: vercel, supabase, etc"
-            className="flex-1 bg-white border border-gray-300 text-black text-lg p-4 rounded-lg outline-none focus:border-black"
-          />
-          <button onClick={scan} className="bg-black text-white px-8 rounded-lg font-bold hover:bg-gray-800">
-            {loading ? "..." : "SCAN"}
-          </button>
+        <div className="flex gap-3 mb-8">
+          <input value={org} onChange={e=>setOrg(e.target.value)} className="flex-1 bg-[#111] border border-[#333] text-white text-lg p-4 rounded-xl focus:border-[#00FF41] focus:outline-none placeholder:text-zinc-600" placeholder="vercel" />
+          <button onClick={scan} className="bg-white text-black px-8 rounded-xl font-black hover:bg-zinc-200 transition">{loading ? "..." : "SCAN"}</button>
         </div>
 
-        <div className="grid gap-3">
-          {results.length === 0 && !loading && <div className="text-center text-gray-400 py-12 border border-dashed rounded-xl">Type org above and click SCAN - try vercel</div>}
+        <div className="grid gap-4">
           {results.map((r,i)=>(
-            <div key={i} className="bg-gray-50 border border-gray-200 p-5 rounded-xl">
-              <div className="flex justify-between">
-                <h3 className="font-bold text-red-600">{r.type || 'EXPOSURE'}</h3>
-                <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-bold">{r.severity || 'MEDIUM'}</span>
+            <div key={i} className="bg-[#111] border border-[#222] p-6 rounded-xl hover:border-zinc-600 transition-all">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="font-black text-white tracking-widest text-sm">{r.type}</h3>
+                <span className="text-xs font-black px-3 py-1 rounded-full bg-yellow-400 text-black">{r.severity}</span>
               </div>
-              <p className="text-sm mt-2"><span className="font-bold">File:</span> {r.file || org}</p>
-              <p className="text-sm font-mono bg-black text-green-400 p-2 rounded mt-2">{r.snippet || 'API key pattern found'}</p>
-              <p className="text-sm text-green-700 mt-2"><span className="font-bold">Fix:</span> {r.fix || 'Rotate key, use env'}</p>
+              <p className="text-sm text-zinc-300">File: <span className="text-white font-bold">{r.file}</span></p>
+              <code className="block mt-3 bg-black border border-zinc-800 p-3 rounded-lg text-[#00FF41] text-sm">{r.snippet}</code>
+              <p className="text-sm text-zinc-400 mt-3">Fix: <span className="text-white">{r.fix}</span></p>
             </div>
           ))}
         </div>
@@ -55,6 +45,10 @@ export default function Home() {
     </main>
   )
 }
+
+
+
+
 
 
 
