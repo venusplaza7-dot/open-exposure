@@ -1,4 +1,4 @@
-use client"
+"use client"
 import { useState } from 'react'
 type Finding = { type: string; severity: string; file: string; snippet: string; fix: string }
 
